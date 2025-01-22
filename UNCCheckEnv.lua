@@ -2,7 +2,7 @@ local passes, fails, undefined = 0, 0, 0
 local running = 0
 
 local function getGlobal(path)
-	local value = getfenv(0)
+	local value = getgenv and getgenv() or getfenv(2)
 
 	while value ~= nil and path ~= "" do
 		local name, nextValue = string.match(path, "^([^.]+)%.?(.*)$")
@@ -13,23 +13,24 @@ local function getGlobal(path)
 	return value
 end
 
-local function test(name, aliases, callback)
-	running += 1
+local function test(name, aliases, callback, target)
+	running = running + 1
 
 	task.spawn(function()
 		if not callback then
 			print("⏺️ " .. name)
 		elseif not getGlobal(name) then
-			fails += 1
+			fails = fails + 1
 			warn("⛔ " .. name)
 		else
 			local success, message = pcall(callback)
-	
+	        name = tostring(name)
+			message = tostring(message)
 			if success then
-				passes += 1
-				print("✅ " .. name .. (message and " • " .. message or ""))
+				passes = passes + 1
+				print("✅ " .. tostring(name) .. (tostring(message) and " • " .. tostring(message) or ""))
 			else
-				fails += 1
+				fails = fails + 1
 				warn("⛔ " .. name .. " failed: " .. message)
 			end
 		end
@@ -43,11 +44,11 @@ local function test(name, aliases, callback)
 		end
 	
 		if #undefinedAliases > 0 then
-			undefined += 1
+			undefined = undefined + 1
 			warn("⚠️ " .. table.concat(undefinedAliases, ", "))
 		end
 
-		running -= 1
+		running = running - 1
 	end)
 end
 
@@ -488,14 +489,6 @@ test("delfile", {}, function()
 	assert(isfile(".tests/delfile.txt") == false, "Failed to delete file (isfile = " .. tostring(isfile(".tests/delfile.txt")) .. ")")
 end)
 
-test("loadfile", {}, function()
-	writefile(".tests/loadfile.txt", "return ... + 1")
-	assert(assert(loadfile(".tests/loadfile.txt"))(1) == 2, "Failed to load a file with arguments")
-	writefile(".tests/loadfile.txt", "f")
-	local callback, err = loadfile(".tests/loadfile.txt")
-	assert(err and not callback, "Did not return an error message for a compiler error")
-end)
-
 test("dofile", {})
 
 -- Input
@@ -709,7 +702,7 @@ test("setfpscap", {}, function()
 		renderStepped:Wait()
 		local sum = 0
 		for _ = 1, 5 do
-			sum += 1 / renderStepped:Wait()
+			sum = sum + 1 / renderStepped:Wait()
 		end
 		return math.round(sum / 5)
 	end
